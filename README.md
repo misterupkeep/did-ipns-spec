@@ -13,6 +13,13 @@ There is a competing DID-over-IPNS spec which can be found
 abandoned. All differences between this technical document with the spec for
 DID-IPID are given below and justified.
 
+The reference resolver is written in JavaScript and can be found here:
+[ipns-did-resolver](https://github.com/misterupkeep/ipns-did-resolver).
+
+The reference library for creating, updating, and resolving IPNS-method DIDs is
+written in JavaScript and can be found here:
+[ipns-did](https://github.com/misterupkeep/ipns-did).
+
 # Differences from the DID-IPID spec
 
 ## Method Name
