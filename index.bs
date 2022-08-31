@@ -266,6 +266,9 @@ Starting from a valid [=DID document=], the process of creating the respective
 
 ### Determining the DID's ID ### {#determining-did-id}
 
+All IPNS [=DID method=] [=DIDs=] have the method name <code>ipns</code> (i.e.
+all IPNS method [=DIDs=] start with <code>did:ipns:</code>).
+
 IPNS [=DID method=] specific IDs come in two formats: [=IPNS DIDs=] and
 [=DNSLink DIDs=]. The process of determining an ID differs based on chosen ID
 format.
