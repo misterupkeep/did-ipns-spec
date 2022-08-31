@@ -1,0 +1,58 @@
+{
+  "DAG-PB": {
+    "authors": ["Rod Vagg", "Eric Myhre", "Volker Mische"],
+    "href": "https://github.com/ipld/ipld/blob/e840711bd2154525252efcb2b482d97a567927bb/specs/codecs/dag-pb/spec.md",
+    "title": "DAG-PB Spec",
+    "status": "Descriptive - Final"
+  },
+
+  "DAG-JSON": {
+    "title": "DAG-JSON Spec",
+    "status": "Descriptive - Final",
+    "href": "https://github.com/ipld/ipld/blob/e840711bd2154525252efcb2b482d97a567927bb/specs/codecs/dag-json/spec.md",
+    "authors": ["Rod Vagg", "Eric Myhre", "Mikeal Rogers", "Volker Mische"]
+  },
+
+  "DAG-CBOR": {
+    "authors": ["Rod Vagg", "Eric Myhre", "Volker Mische", "Mikeal Rogers"],
+    "href": "https://github.com/ipld/ipld/blob/e840711bd2154525252efcb2b482d97a567927bb/specs/codecs/dag-cbor/spec.md",
+    "title": "DAG-CBOR Spec",
+    "status": "Descriptive - Final"
+  },
+
+  "DNSLink": {
+    "href": "https://dnslink.dev/",
+    "title": "DNSLink Homepage",
+    "etAl": true,
+    "authors": [
+      "Juan Benet",
+      "whyrusleeping",
+      "Victor Bjelkholm",
+      "David Dias",
+      "Martin Heidegger"
+    ]
+  },
+
+  "PEER-ID": {
+    "title": "Peer ID Spec",
+    "authors": ["M. Goelzer", "Yusef Napora", "Marcin Rataj"],
+    "status": "Active",
+    "versions": ["r2, 2021-04-30"],
+    "href": "https://github.com/libp2p/specs/blob/50220a14139eb824b12502c55ccfd7ec5e65da9a/peer-ids/peer-ids.md"
+  },
+
+  "IPNS": {
+    "title": "Interplanetary Naming System Spec",
+    "authors": ["Vasco Santos", "Steven Allen"],
+    "etAl": true,
+    "status": "Work In Progress",
+    "href": "https://github.com/ipfs/specs/blob/c889e0ba368250300a9f3b47b6c8d3e785a0228c/IPNS.md"
+  },
+
+  "CID": {
+    "title": "CID Spec",
+    "authors": ["Steven Allen", "Marcin Rataj", "David Dias"],
+    "etAl": true,
+    "href": "https://github.com/multiformats/cid/blob/7da1019184403a0805e9fc90d63680cb61371704/README.md"
+  }
+}

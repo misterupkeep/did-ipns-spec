@@ -1,15 +1,581 @@
 <pre class='metadata'>
-Title: Your Spec Title
-Shortname: your-spec
-Level: 1
-Status: w3c/CG-DRAFT
-Group: w3c-ccg
-URL: Your spec url
-Editor: Your Name, Your Company http://example.com/your-company, your-email@example.com, http://example.com/your-personal-website
-Abstract: A short description of your spec, one or two sentences.
+Title: IPNS DID Method
+Shortname: did-ipns
+Status: LS
+Repository: https://github.com/misterupkeep/did-ipns-spec
+URL: https://misterupkeep.github.io/did-ipns-spec
+Editor: Upkeep, upkeep@airmail.cc
+Abstract: The IPNS DID method specification defines a new DID method comformant to [[DID-CORE]] that utilises IPFS and IPNS for publishing, updating, and resolving DID documents.
+Warning: Not Ready
 </pre>
 
 Introduction {#intro}
 =====================
 
-Introduction here.
+<i>This section is non-normative.</i>
+
+Decentralized identifiers (DIDs), as defined in [[DID-CORE]] are a type of
+identifier that let subjects identified by them (called DID subjects)
+autonomously create, publish, and update an identifying document (called the DID
+document) which they can cryptographically prove is controlled by them.
+
+This identification scheme only makes sense if the related DID documents are
+distributed to interested parties by a third-party system outside the control of
+the DID subject.
+
+A [=DID method=] defines the mechanisms by which creating, updating, and
+deactivating [=DIDs=] and [=DID documents=], and resolving [=DIDs=] into their respective
+[=DID documents=] happens, using a particuar data registry.
+
+This document defines a [=DID method=] (<code>did:ipns:</code>) using the
+[=IPFS=] distributed file sharing protocol for DID document storage and
+retrieval, and [=IPNS=] – a subsystem of [=IPFS=] – for [=IPNS resolution|name
+resolution.=]
+
+## A Primer on IPNS ##  {#ipns-primer}
+
+<i>This subsection is non-normative.</i>
+
+<abbr title="Interplanetary File System">[=IPFS=]</abbr> is a peer-to-peer file
+sharing protocol which uses content-addressing to identify and locate files on
+the network. Namely, the unit of storage on [=IPFS=] ­– called a [=block=] ­– is
+uniquely identified by a content identifier ([=CID=]).
+
+The [=CID=] format contains the hash of the block it is referring to, preceded
+by a header specifying the hash algorithm used, as well as encoding method used
+to serialize the data referred to by the [=CID=].
+
+This means every file is globally and uniquely identified on the [=IPFS=]
+network and is referred to by its hash. Consequently, "updating a file" is an
+operation foreign to the protocol, as changes to the file affect its hash, and
+thereby the [=CID=] used to refer to it.
+
+<abbr title="Interplanetary Naming System">[=IPNS=]</abbr> ­– a subsystem of
+[=IPFS=] ­– solves this issue by using the hashes of public keys to create
+[=CIDs=] which refer to blocks signed by their corresponding private keys. This
+keypair is also referred to as the [=Peer ID=], as it is also used by peers on
+the [=IPFS=] network to identify themselves.
+
+The block referred by the [=CID=], also called an [=IPNS record=], contains a
+signature, conditions determining if the record is valid, a revision number, and
+a value (which usually points to an IPNS or IPFS path). Resolution happens
+recursively until finding a [=CID=] that points to a non-[=IPNS record=] block.
+
+Note: Currently, the only supported validation rule is an expiry date.
+
+Note: The [=IPNS record=] contains other fields as well, but they have been
+omitted for clarity.
+
+When a node encounters an [=IPNS record=] with a valid signature and revision
+number higher than the revision in the IPNS record it already has for that
+public key, it replaces the old block with the new one. This is how [=IPNS
+records=] are updated.
+
+### DNSLink ### {#dnslink-primer}
+
+<i>This section is non-normative.</i>
+
+[=CIDs=] are unintelligible to humans, and can be difficult to use because of
+this. They are hard to remember, and non-descriptive of the content they refer
+to.
+
+[=DNSLink=] solves this issue by defining a method of creating, publishing, and
+resolving records using the [[RFC1035|Domain Name System]].
+
+To resolve a domain name into a [=CID=], the TXT record for the `_dnslink`
+subdomain of that domain is checked. If the value starts with `dnslink=`,
+everything past the `=` character is considered the result of the resolution.
+
+Just like with [=IPNS records=] on the [=IPFS=] network, this value can be a
+[=CID=], or point to another [=IPNS=] or [=DNSLink=] record.
+
+## A Primer on IPLD ## {#ipld-primer}
+
+<i>This subsection is non-normative.</i>
+
+<abbr title="Interplanetary Linked Data">[=IPLD=]</abbr> is a unifying data
+model intended to be the standard representation of data stored on [=IPFS=]. Its
+domain of values is nearly similar to that of [[JSON]]. It adds an additional
+data type, the [=CID=], which is used to refer to other blocks on the [=IPFS=]
+network.
+
+It allows implementors to use any encoding of their choice to serialize and
+deserialize values in the domain, so long as decoding after encoding produces
+a result equal to the input of this process.
+
+In this way, implementors who need to work with data don't need to worry about
+how that data is stored; and can instead interface with the guarantees [=IPLD=]
+gives them.
+
+[=IPLD=] also defines a path format, similar to POSIX paths, which can be used
+to follow paths inside [=IPLD=] data. In the following example, some IPLD data
+is given (in the form of [[JSON|JSON]]), an IPLD path, and the result of
+following that path through the given data.
+
+<div class=example id=example-1>
+Example IPLD data, presented in [[JSON|JSON]]:
+  <pre highlight="json">
+	{
+      "name": "John Doe",
+      "contact": [
+        {
+          "type": "phone",
+          "value": "1234567890"
+        },
+        {
+          "type": "email",
+          "value": "john.doe@jdoe.example"
+        }
+      ]
+    }
+  </pre>
+
+  An example IPLD path:
+
+  <pre highlight="text">
+    /contact/0/value
+  </pre>
+
+  The result of following the path through the example data:
+  <pre highlight="json">
+    "1234567890"
+  </pre>
+</div>
+
+The exact details of how data is serialized and deserialized is defined in a
+single definition called a [=codec=].
+
+# Terminology # {#terminology}
+
+This section defines terms used in this specification. Use of terms is to be
+considered normative when they appear in normative sections. A link to these
+terms is included whenever they appear in this specification.
+
+: <dfn>DID</dfn>
+:: Decentralized identifier, as defined in [[!DID-CORE]].
+: <dfn>DID document</dfn>
+:: A conformant DID document, as defined in [[!DID-CORE]].
+: <dfn>DID resolution</dfn>
+:: The process of finding the [=DID document=] corresponding to a given [=DID=],
+	as defined in [[!DID-CORE]].
+: <dfn>representation</dfn>
+:: Information in a particular format.
+: <dfn>DID controller</dfn>
+:: An entity capable of making changes to a [=DID document=], as defined in
+	[[!DID-CORE]].
+: <dfn>DID subject</dfn>
+:: The entity identified by a [=DID=], and described by a [=DID document=], as
+	defined in [[!DID-CORE]].
+: <dfn>DID method</dfn>
+:: A definition of how [=DIDs=] and [=DID documents=] are created, published,
+	updated, and revoked, for some particular method scheme, as defined in [[!DID-CORE]].
+: <dfn data-lt="IPFS|Interplanetary File System">Interplanetary File System (IPFS)</dfn>
+:: A distributed peer-to-peer file sharing protocol that uses content-addressing
+	to identify files on the network.
+: <dfn data-lt="block|IPFS block">IPFS block</dfn>
+:: Unit of storage on the [=IPFS=] network.
+: <dfn data-lt="IPNS|Interplanetary Naming System">Interplanetary Naming System (IPNS)</dfn>
+:: A scheme for creating immutable pointers to mutable data on the [=IPFS=]
+	network, as defined in [[!IPNS]].
+: <dfn>DNS zone</dfn>
+:: A subtree of the domain space, as defined in [[RFC1035#section-2.1]].
+: <dfn>CID</dfn>
+:: Content identifier. Used to globally and uniquely identify [=blocks=] on the
+	[=IPFS=] network, as defined in [[!CID]].
+: <dfn>IPNS record</dfn>
+:: A [=block=] that contains information on how to resolve this record into
+	a [=block=], as defined in [[!IPNS]].
+: <dfn>IPNS CID</dfn>
+:: A [=CID=] that refers to an [=IPNS record=] block, derived from a particular
+	[=peer ID=].
+: <dfn>IPNS DID</dfn>
+:: A [=DID=] whose method-specific ID is an [=IPNS CID=].
+: <dfn>IPNS resolution</dfn>
+:: Process of resolving an [=IPNS CID=] or [=DNSLink=] domain name into a
+	non-[=IPNS record=] [=block=].
+: <dfn>DNSLink</dfn>
+:: An alternative method of resolving human-readable names into [=CIDs=] that
+	utilizes the [[!RFC1035|Domain Name System]], as defined in [[!DNSLink]].
+: <dfn>DNSLink DID</dfn>
+:: A [=DID=] whose method-specific ID is a domain name.
+: <dfn data-lt="IPLD|IPLD data model">IPLD data model</dfn>
+:: Data model to which all data stored over [=IPFS=] should (de)serialize to.
+: <dfn>codec</dfn>
+:: A well-defined method for deserializing and serializing data to and fro the
+	[=IPLD data model=].
+: <dfn>conformant codec</dfn>
+:: A codec that is conformant with the criteria laid out in
+	[[#supported-codecs]], and can be used with DID-IPNS.
+: <dfn>peer ID</dfn>
+:: A cryptographic key pair used for signing messages, as defined in
+	[[!PEER-ID]]
+
+# Supported Codecs # {#supported-codecs}
+
+The goal of [=IPLD=] is to abstract over different wire formats, and allow
+developers to write code that works across all different [=codecs=]. The DID
+IPNS method furthers this goal by supporting all codecs that meet a certain
+set of criteria.
+
+Namely, for a codec to be [=conformant codec|conformant=] for usage with
+DID-IPNS, it must meet the requirements for representations laid out in
+[[DID-CORE#production-and-consumption]].
+
+It must also have a deterministic, stable, ordering for all array, map, and set
+keys ­– so that differently ordered, but otherwise identical data, will always
+encode to the same output.
+
+Conformant resolvers must support at least the [[!DAG-JSON]], and [[!DAG-CBOR]]
+codecs, but should support as many as possible.
+
+Note: Support for the [[DAG-PB|DAG-PB]] [=codec=] is optional, and the
+implementation details for supporting this [=codec=] are left to the discretion
+of software and/or hardware manufacturers.
+
+Conformant implementations should not allow users to serialize [=DID documents=]
+with a non-conformant codec.
+
+Advisement: Currently, there is no way to tell which codec behaves conformantly
+just by looking at the codec alone. Therefore, known pathological codecs should
+be disallowed from use, and a warning should be displayed regarding this issue
+when using unknown codecs.
+
+# Operations # {#operations}
+
+This section defines which operations are supported by the method, and the
+details of their implementations.
+
+## Creating a DID ## {#creating-a-did}
+
+The DID-IPNS method-specific ID recognizes two different ID formats.
+
+One format uses [=IPNS records=] for [=DID resolution=], An ID in this format is
+the [=IPNS CID=] derived from a particular [=peer ID=] used to sign the [=IPNS
+record=] it refers to. [=DIDs=] using this ID format are referred to as [=IPNS
+DIDs=].
+
+The other format uses [=DNSLink=]. An ID in this format is a domain name.
+[=DIDs=] using this ID format are referred to as [=DNSLink DIDs=].
+
+With both ID formats, the respective records must point to either a [=CID=]
+pointing to a valid [=DID document=], or another [=IPNS CID=] or [=DNSLink=]
+domain.
+
+Starting from a valid [=DID document=], the process of creating the respective
+[=DID=] is multifaceted.
+
+### Determining the DID's ID ### {#determining-did-id}
+
+IPNS [=DID method=] specific IDs come in two formats: [=IPNS DIDs=] and
+[=DNSLink DIDs=]. The process of determining an ID differs based on chosen ID
+format.
+
+#### IPNS DID IDs
+
+The ID of an [=IPNS DID=] is the [=CID=] derived from a [=peer ID=]. As such,
+the ID component of the [=DID=] must be set to the derived [=CID=].
+
+Issue: Deriving [=CIDs=] from [=peer IDs=] is not defined in any spec.
+
+An existing [=peer ID=] may be used for this purpose, or a new one can be
+generated by the methods detailed in [[!PEER-ID]].
+
+The same peer ID must be used to cryptographically sign all subsequent [=IPNS
+records=] pertaining to this [=DID=], using the signature method defined in
+[[IPNS#ipns-record]].
+
+This [=peer ID=] being compromised allows malicious agents to manipulate [=IPNS
+records=] to point to other [=DID documents=]. Loss of the [=peer ID=] will
+render the [=DID controller=] unable to publish or update their [=DID
+documents=]. Because of this, it is of utmost importance the [=peer ID=] be kept
+secured.
+
+Issue: Refer to key pair storage best practices.
+
+#### DNSLink DID IDs
+
+DNSLink uses domain name records to point to [=CIDs=]. As such, the ID component
+of the [=DID=] must be set to a domain name with a valid [=DNSLink=] TXT record.
+
+The domain name must be in a [=DNS zone=] under the control of the [=DID
+subject=].
+
+### Making the DID Document Available Over IPFS ### {#upload-doc-to-ipfs}
+
+After having created a valid [=DID document=] with a method-specific ID
+conformant to the details outlined in [[#determining-did-id]], the document
+needs to be made available over the [=IPFS=] network, and its corresponding
+[=CID=] calculated. This [=CID=] will be used in [=IPNS record|IPNS=] and
+[=DNSLink|DNSLink records=] to refer to the [=DID document=].
+
+The [=DID document=] may be made into a [=representation=] by encoding it with
+any [=codec=] that meets the criteria outline in [[#supported-codecs]].
+
+### Creating the IPNS/DNSLink Records ### {#creating-records}
+
+Finally, a record must be published to allow resolution of a [=DID=] to its
+[=DID document=], depending on the method-specific ID format.
+
+#### IPNS DID IDs
+
+In case of a [=IPNS DID=], the [=DID controller=] publishes an [=IPNS record=]
+to a [=block=] on the [=IPFS=] network, signed with a [=peer ID=] unique to the
+[=DID subject=], with a value that is either:
+1. An [=IPNS CID=] or [=DNSLink=] domain which, when [=IPNS resolution|resolved
+	into a block=], point to a valid [=DID document=] [=representation=] on the
+	[=IPFS=] network, or
+2. A [=CID=] pointing to a [=block=] with a valid [=representation=] of a [=DID
+	document=].
+
+The [=IPNS record=] must contain a sequence number larger than the sequence
+numbers in all other [=IPNS records=] signed by the same [=peer ID=].
+
+#### DNSLink DID IDs
+
+For a chosen domain name |domainname|, the administrator of the [=DNS zone=] to
+which |domainname| belongs must add a TXT record to the subdomain <var
+ignore="">_dnslink.domainname</var> with a value that is either:
+1. An [=IPNS CID=] or [=DNSLink=] domain which, when [=IPNS resolution|resolved
+	into a block=], point to a valid [=DID document=] [=representation=] on the
+	[=IPFS=] network, or
+2. A [=CID=] pointing to a [=block=] with a valid [=representation=] of a [=DID
+	document=].
+
+The TXT record must be prefixed with the string <code
+highlight="text">dnslink=</code>.
+
+
+#### Value Syntax
+
+The values in both [=IPNS records=] and [=DNSLink=] TXT record must follow the
+syntax defined in ABNF below. The only exception to this is DNSLink TXT records
+which must be prefixed with <code highlight="text">dnslink=</code>.
+
+ABNF is used as defined in [[!ABNF]]. All non-terminals are defined below,
+except for VCHAR which is defined in [[!ABNF]].
+
+<pre highlight="abnf">
+value = ipfs-value / ipns-value
+ipfs-value = "/ipfs/" cid [path]
+ipns-value = "/ipns/" cid [path]
+
+cid = *VCHAR
+path = "/" [*VCHAR] [path]
+</pre>
+
+### Authorization ### {#did-creation-authorization}
+
+Authorization is performed out-of-band for [=DID=] creation, using two separate
+mechanisms.
+
+For [=IPNS DIDs=], authorization is performed by cryptographically signing each
+[=IPNS record=] with the same [=peer ID=]. Should the [=peer ID=] become
+compromised, so too do the [=IPNS records=], meaning a malicious agent can
+create and publish [=DID documents=] on behalf the [=DID controller=]. Loss of
+the [=peer ID=] will render the [=DID controller=] unable to publish or update
+their [=DID documents=]. Because of this, it is of utmost importance the [=peer
+ID=] be kept secured.
+
+Issue: Refer to key pair storage best practices.
+
+For [=DNSLink DIDs=], authorization is delegated to the authorization mechanisms
+involved in managing a [=DNS zone=].
+
+## Updating a DID ## {#updating-a-did}
+
+The mechanism for updating a [=DID=] is near identical to that of creating one.
+After preparing a valid [=DID document=], the [=DID controller=] must first make
+it available to the [=IPFS=] network, as described in [[#upload-doc-to-ipfs]].
+
+Subsequently, the [=DID controller=] must update relevant records to contain the
+[=CID=] of the updated [=DID document=], following the procedure described in
+[[#creating-records]].
+
+In case no change in the [=DID document=] has been made, the [=CID=] pointing to
+the block with the [=representation=] of the [=DID document=] will be the same
+as the one already published in the relevant records, making this operation a
+no-op.
+
+### Authorization
+
+The authorization mechanism for updating a [=DID=] is the same as for creating a
+[=DID=], as specified in [[#did-creation-authorization]].
+
+## Deleting a DID ## {#deleting-a-did}
+
+As [=IPFS=] is a peer-to-peer distributed filesystem, the issuance of a deletion
+of blocks on the network is impossible, making deleting [=DIDs=] impossible as
+well.
+
+The best [=DID controllers=] can do is delete the TXT records in their DNS
+zones, if they are using a [=DNSLink DID=], or publish a new [=IPNS record=]
+with a value that points away from the [=DID document=], if they are using
+[=IPNS DIDs=].
+
+In this way, it would be impossible for others to resolve a [=DID subject's=]
+[=DID=] to a [=DID document=], however they might still be able to access
+previous [=DID documents=] using other mechanisms.
+
+## Reading a DID ## {#reading-a-did}
+
+Conformant resolvers must use the method-specific ID component of the [=DID=] to
+resolve [=DIDs=] into their [=DID documents=] by recursively performing [=IPNS
+resolution=] until hitting a [=block=] containing a valid [=representation=] of
+a [=DID document=].
+
+Conformant resolvers must reject [=DID documents=] whose <code>id</code>
+property differs from the [=DID=] used as input to the resolver.
+
+Conformant resolvers and DID URL dereferencers must use the path in the DID URL
+to traverse data inside the [=DID document=]. This implies that a bare [=DID=]
+(with no path) must always resolve to a [=DID document=].
+
+Conformant resolvers must use the [=CID=] of the [=block=] containing the [=DID
+document=] as the <code>versionId</code> document metadata field.
+
+# Security Considerations # {#security-considerations}
+
+<i> This section is non-normative. </i>
+
+This section contains a variety of security considerations, notices, and
+suggested practices for implementors and users of the DID IPNS method alike.
+This section elaborates on the concerns outlined in
+[[DID-CORE#security-requirements]].
+
+## Possible Attacks ## {#possible-attacks}
+
+This section outlines possible attacks on the mechanisms of this [=DID method=],
+as well as possible counter-measures, if any.
+
+### Attack Vectors ### {#attack-vectors}
+
+In the architecture for this [=DID method=], there exist a few possible alleys
+for attacks.
+
+### Attacks on the IPFS Network ### {#ipfs-attacks}
+
+Attackers can choose to disrupt, manipulate, or otherwise attack the [=IPFS=]
+network directly.
+
+Considering its decentralized nature, while an attack like this *is* possible,
+it requires control over a substantial portion of the network. Furthermore, if
+discovered, peers on the network can choose to route around the malicious peers,
+thus diffusing the attack.
+
+In any case, attacks of this kind fall out of the scope of this method.
+
+### Attacks on IPNS Records ### {#ipns-attacks}
+
+Considering data is stored immutably on the [=IPFS=] network, and is referred to
+by the hash of its content, no trust needs to be placed in any individual
+[=IPFS=] peer to deliver the correct [=DID document=].
+
+However, [=IPNS CIDs=] refer to the hashes of public keys, with the [=block=]
+they resolve to being mutable. This means [=IPNS records=] may be a possible
+vector of attack.
+
+Depending on the ID format of the [=DID=] (as explained in
+[[#determining-did-id]]), malicious actors have a few different targets.
+
+In case of a [=DNSLink DID=], attackers must gain controls over a [=DNS zone=].
+As such, this kind of attack falls outside the scope of this method.
+
+In case of a [=IPNS DID=], attackers could forge [=IPNS records=] on behalf the
+[=DID controller=] only if they gain access to the private key of the [=peer
+ID=] used to sign [=IPNS records=] by that [=DID controller=]. This is why
+keeping the [=peer ID=] keypair confidential is of utmost importance.
+
+### Man-In-The-Middle Attacks ### {#mitm-attacks}
+
+An attacker may situate himself between a [=DID controller=] trying to publish
+an [=IPNS record=]. Since the cryptographic signature in the [=IPNS record=]
+makes it impossible to tamper with, the attacker can only decide to drop the
+record instead of republishing to other peers.
+
+[=DID controllers=] may mitigate this by sending their [=IPNS records=] to many
+peers, reducing the probability of peering with only malicious nodes.
+
+[=DNSLink DIDs=] do not suffer from this kind of attack.
+
+### Brute-Force Attacks ### {#bruteforce-attacks}
+
+[=IPNS DIDs=] use public key cryptography to sign [=IPNS records=] they publish
+to the network. As such, the keys used by [=DID controllers=] may be susceptible
+to brute-force attacks.
+
+Mitigation of brute-force attacks involves standard practice of picking
+sufficiently sized keys to make the attacks computationally far too costly.
+
+## Residual Risks ## {#residual-risks}
+
+Depending on the ID format, there exist a few residual risks of compromise. For
+example, attackers may steal the private keys of used [=peer IDs=] via an attack
+that allows them access to the storage device they are stored on.
+
+Similarly, [=DNSLink DIDs=] may be compromised if attackers gain administrative
+access to the corresponding [=DNS zone=] by attacking the registrar which
+controls that zone.
+
+## DID Integrity ## {#did-integrity}
+
+[=CIDs=] are used to identify [=DID documents=] on the [=IPFS=] network. The
+[=CID=] contains the hash of the data it refers to. Therefore, by comparing the
+hash in the [=CID=] to the hash of the received [=DID document=], integrity of
+the resolved document may be confirmed.
+
+[=IPNS DIDs=] are cryptographically signed with a [=peer ID's=] public key,
+which is also the method-specific ID component of the DID, thereby ensuring
+[=IPNS records=] maintain integrity.
+
+## DID Uniqueness ## {#did-uniqueness}
+
+[=DNSLink DIDs=] are as unique as the uniqueness of the entity administering its
+[=DNS zone=].
+
+[=IPNS DIDs=] are impossible to prove unique. However, as they are derived from
+generated keypairs, the probability of generating an existing [=DID=] is the
+same as finding a hash collision.
+
+## IPFS Node Interactions ## {#ipfs-node-interactions}
+
+[=IPFS=] nodes are software required to interact with peers on the [=IPFS=]
+network. Instead of running node software themselves, users can interface with
+existing nodes to perform operations on the [=IPFS=] network. Interaction with
+malicious IPFS nodes may pose a few security risks.
+
+In this setup, the node a user interfaces with is a prime candidate for
+performing man-in-the-middle attacks, like those outlined in [[#mitm-attacks].
+
+[=IPFS=] nodes also expose a [=peer ID=] keypair generation and usage, and
+[=IPNS record=] publication interface which uses the aforementioned [=peer
+IDs=]. It is important to note that [=peer IDs=] generated in this way are
+generated and known by the node.
+
+A malicious node would then be able to create and publish [=IPNS records=] on
+behalf the [=DID controller=]. For this reason, it is advised [=DID
+controllers=] generate their own [=peer ID=] keypairs and create their own
+[=IPNS record=] [=blocks=].
+
+# Privacy Considerations # {#privacy-considerations}
+
+<i> This section is non-normative </i>
+
+As all data on the [=IPFS=] network is public and content-addressed, the notions
+of surveillance, disclosure, and secondary use are unavoidable; and in certain
+cases, the whole point of the protocol. In this sense, when no data is
+confidential, herd privacy means all data is anonymous (given no personal
+information is published).
+
+Much in the same way, when certain entries stick out in particular ways from the
+herd, they can be easily correlated. Some examples include:
+- Using the same [=DNS zone=] for [=DNSLink DIDs=] (i.e.
+	<code>domain.example</code> and <code>notme.domain.example</code>,
+- Using a specific, uncommon [=codec=] for creating [=DID document=]
+	[=representations=],
+- Revealing the same [=peer ID=] in multiple [=DID documents=],
+- Revealing a [=peer ID=] whose [=IPNS records=] used to point to identifiable
+	data
+- Linking to blocks where any of the above can be found.
+
+Users need to be wary of what they publish, and how they publish, lest they
+be identified, or correlated to another entity.
